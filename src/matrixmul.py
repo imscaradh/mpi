@@ -5,7 +5,7 @@ import math
 global a
 global b
 global c
-global dim
+global procs
 
 
 def init_shift_left(matrix):
@@ -34,18 +34,20 @@ def shift_up(matrix):
 
 def main():
     comm = MPI.COMM_WORLD
-    dim = comm.Get_size()
+    procs = comm.Get_size()
     rank = comm.Get_rank()
     wt = MPI.Wtime()
 
-    a = np.random.randint(1000, size=(dim, dim))
-    b = np.random.randint(1000, size=(dim, dim))
-    c = np.zeros((dim, dim))
+    N = 16
 
-    steps = int(math.sqrt(dim))
+    a = np.random.randint(1000, size=(N, N))
+    b = np.random.randint(1000, size=(N, N))
+    c = np.zeros((N, N))
+
+    steps = int(N / math.sqrt(procs))
     result_quarter = np.zeros((steps, steps))
 
-    for turns in range(dim):
+    for turns in range(procs):
         data = []
         # send the whole stuff to processors
         if rank == 0:
@@ -58,8 +60,8 @@ def main():
                 shift_left(a)
                 shift_up(b)
 
-            for i in range(0, dim, steps):
-                for j in range(0, dim, steps):
+            for i in range(0, N, steps):
+                for j in range(0, N, steps):
                     a_quarter = a[i:i + steps, j:j + steps]
                     b_quarter = b[i:i + steps, j:j + steps]
                     quarters_to_transfer = {'a': a_quarter, 'b': b_quarter}
@@ -75,15 +77,14 @@ def main():
 
     # this is the last step
     if rank == 0:
-        matrix_to_add = np.zeros((0, dim))
-        steps = int(math.sqrt(dim))
-        for i in range(0, dim, steps):
+        quarter_width = int(math.sqrt(procs))
+        c = np.zeros((0, N))
+        for i in range(quarter_width):
             temp = np.zeros((steps, 0))
-            for j in range(0, dim, steps):
+            for j in range(i * quarter_width, (i + 1) * quarter_width):
                 temp = np.concatenate((temp, data[j]), axis=1)
-            matrix_to_add = np.concatenate((matrix_to_add, temp), axis=0)
+            c = np.concatenate((c, temp), axis=0)
 
-        c = np.add(c, matrix_to_add)
         print("\n Result:\n", repr(c))
 
         used_time = MPI.Wtime() - wt
