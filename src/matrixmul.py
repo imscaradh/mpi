@@ -47,13 +47,13 @@ def main():
     steps = int(N / math.sqrt(procs))
     result_quarter = np.zeros((steps, steps))
 
-    for turns in range(procs):
+    for turns in range(N):
         data = []
         # send the whole stuff to processors
         if rank == 0:
             if turns == 0:
-                print("A matrix: \n", a)
-                print("\nB matrix:\n", b)
+                print("A matrix: \n", repr(a))
+                print("\nB matrix:\n", repr(b))
                 init_shift_left(a)
                 init_shift_up(b)
             else:
