@@ -61,3 +61,7 @@ target/
 # Linux
 *.swp
 *.swo
+
+# IDEA
+.idea
+*.iml
