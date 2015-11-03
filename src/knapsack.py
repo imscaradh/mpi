@@ -9,8 +9,6 @@ def main():
     rank = comm.Get_rank()
     wt = MPI.Wtime()
 
-#    weight = np.randint(1, size=(2, 38))
-
     W = 5
 
     items = {
@@ -20,13 +18,14 @@ def main():
         5: 6,
     }
 
-    V = np.zeros((len(items)+ 1, W + 1))
+    V = np.zeros((len(items) + 1, W + 1))
 
-    for i in range(1, len(items) + 1):
-        for j in range(W + 1):
-            wi = 0 if items.get(i + 1) is None else i + 1
+    for i in range(1, len(V)):
+        for j in range(len(V[0])):
+            item = items.get(i + 1)
+            wi = 0 if item is None else i + 1
             if wi <= j:
-                b = 0 if items.get(i + 1) is None else items.get(i + 1)
+                b = 0 if item is None else item
                 V[i][j] = max(b + V[i - 1][j - wi], V[i - 1][j])
             else:
                 V[i][j] = V[i - 1][j]
