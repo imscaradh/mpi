@@ -47,7 +47,7 @@ def main():
     steps = int(N / math.sqrt(procs))
     result_quarter = np.zeros((steps, steps))
 
-    for turns in range(procs):
+    for turns in range(N):
         data = []
         # send the whole stuff to processors
         if rank == 0:
