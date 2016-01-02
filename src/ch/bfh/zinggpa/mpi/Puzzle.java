@@ -13,28 +13,31 @@ public class Puzzle {
     private Stack<String> stack;
     private int rows;
     private int cols;
+    private boolean solved;
 
-    public Puzzle(int[] puzzleRepresentation, int[] spacerPos, int rows, int cols) {
+    public Puzzle(int[] puzzleRepresentation, int rows, int cols) {
         this.puzzleRepresentation = puzzleRepresentation;
-        this.spacerPos = spacerPos;
+        this.spacerPos = new int[]{0, 0};
         this.stack = new Stack<>();
         this.rows = rows;
         this.cols = cols;
+        this.solved = false;
     }
 
-    public void solve() {
+    public boolean solve() {
         int[] arrayCopy = Arrays.copyOf(puzzleRepresentation, puzzleRepresentation.length);
         solve(arrayCopy, null, spacerPos, DEPTH);
+        return solved;
     }
 
     private void solve(int[] puzzle, Direction actualDir, int[] spacerPos, int depth) {
         if (isSorted(puzzle)) {
-            System.out.println(stack.toString() + "\n");
+            System.out.println(stack.toString());
             System.out.println(Arrays.toString(puzzle));
-            System.exit(0);
+            solved = true;
         }
-        if (depth == 0) {
-            System.out.println(stack.toString() + "\n");
+        if (depth == 0 || solved) {
+            //System.out.println(stack.toString() + "\n");
             stack.pop();
             return;
         }
