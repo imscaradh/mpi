@@ -8,29 +8,29 @@ import java.util.Stack;
 
 public class Puzzle {
     public static final int DEPTH = 10;
-    private int[][] puzzleRepresentation;
-    private int size;
+    private int[] puzzleRepresentation;
     private int[] spacerPos;
     private Stack<String> stack;
+    private int rows;
+    private int cols;
 
-    public Puzzle(int[][] puzzleRepresentation, int[] spacerPos) {
+    public Puzzle(int[] puzzleRepresentation, int[] spacerPos, int rows, int cols) {
         this.puzzleRepresentation = puzzleRepresentation;
-        this.size = puzzleRepresentation.length;
         this.spacerPos = spacerPos;
         this.stack = new Stack<>();
+        this.rows = rows;
+        this.cols = cols;
     }
 
     public void solve() {
-        int[][] arrayCopy = copyArray(puzzleRepresentation);
+        int[] arrayCopy = Arrays.copyOf(puzzleRepresentation, puzzleRepresentation.length);
         solve(arrayCopy, null, spacerPos, DEPTH);
     }
 
-    private void solve(int[][] puzzle, Direction actualDir, int[] spacerPos, int depth) {
-        if (Arrays.deepEquals(puzzle, new int[][]{{1, 2, 3}, {4, 5, 6}, {7, 8, 0}})) {
+    private void solve(int[] puzzle, Direction actualDir, int[] spacerPos, int depth) {
+        if (isSorted(puzzle)) {
             System.out.println(stack.toString() + "\n");
-            System.out.println(Arrays.toString(puzzle[0]));
-            System.out.println(Arrays.toString(puzzle[1]));
-            System.out.println(Arrays.toString(puzzle[2]));
+            System.out.println(Arrays.toString(puzzle));
             System.exit(0);
         }
         if (depth == 0) {
@@ -75,31 +75,36 @@ public class Puzzle {
         // Check if spacer is near a border
         if (x == 0) possibleDirections.remove(Direction.LEFT);
         if (y == 0) possibleDirections.remove(Direction.UP);
-        if (x == size - 1) possibleDirections.remove(Direction.RIGHT);
-        if (y == size - 1) possibleDirections.remove(Direction.DOWN);
+        if (x == cols - 1) possibleDirections.remove(Direction.RIGHT);
+        if (y == rows - 1) possibleDirections.remove(Direction.DOWN);
 
         // Expand graph for each possible direction
         for (Direction dir : possibleDirections) {
             stack.push(dir.toString());
-            int[][] arrayCopy = copyArray(puzzle);
+            int[] arrayCopy = Arrays.copyOf(puzzle, puzzle.length);
             solve(arrayCopy, dir, spacerPos, depth - 1);
         }
         if (!stack.isEmpty()) stack.pop();
     }
 
-    private int[][] copyArray(int[][] input) {
-        int[][] arrayCopy = new int[input.length][];
-        for (int i = 0; i < input.length; i++)
-            arrayCopy[i] = Arrays.copyOf(input[i], input.length);
-        return arrayCopy;
+
+    private void move(int[] puzzle, int[] oldPos, int[] newPos) {
+        int tmp = puzzle[oldPos[1] * rows + oldPos[0]];
+        puzzle[oldPos[1] * rows + oldPos[0]] = puzzle[newPos[1] * rows + newPos[0]];
+        puzzle[newPos[1] * rows + newPos[0]] = tmp;
     }
 
-    private void move(int[][] puzzle, int[] oldPos, int[] newPos) {
-        int tmp = puzzle[oldPos[1]][oldPos[0]];
-        puzzle[oldPos[1]][oldPos[0]] = puzzle[newPos[1]][newPos[0]];
-        puzzle[newPos[1]][newPos[0]] = tmp;
+    private boolean isSorted(int[] array) {
+        boolean sorted = true;
+        if (array[array.length - 1] != 0) return false;
+        for (int i = 0; i < array.length - 1; i++) {
+            if (array[i + 1] != 0 && array[i] > array[i + 1]) {
+                sorted = false;
+                break;
+            }
+        }
+        return sorted;
     }
-
 
     enum Direction {
         LEFT, RIGHT, UP, DOWN
