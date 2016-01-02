@@ -1,141 +1,107 @@
 package ch.bfh.zinggpa.mpi;
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.Stack;
 
-/**
- * @author zinggpa
- */
 public class Puzzle {
-    public static final int LIMIT = 10;
-    private final int width;
+    public static final int DEPTH = 10;
+    private int[][] puzzleRepresentation;
+    private int size;
+    private int[] spacerPos;
+    private Stack<String> stack;
 
-    private int puzzleSize;
-    private int[] puzzle;
-    private Map<Integer, List<Integer>> tree;
-
-    public Puzzle(int[] puzzle) {
-        this.puzzle = puzzle;
-        this.puzzleSize = puzzle.length;
-        this.width = this.puzzleSize = (int) Math.sqrt(puzzle.length);
+    public Puzzle(int[][] puzzleRepresentation, int[] spacerPos) {
+        this.puzzleRepresentation = puzzleRepresentation;
+        this.size = puzzleRepresentation.length;
+        this.spacerPos = spacerPos;
+        this.stack = new Stack<>();
     }
 
     public void solve() {
-        Node parent = new Node();
-        parent.setNumber(1);
-        parent.setLastPos(8);
-        dfs(parent, LIMIT, 0);
+        int[][] arrayCopy = copyArray(puzzleRepresentation);
+        solve(arrayCopy, null, spacerPos, DEPTH);
     }
 
-    public Node dfs(Node actualNode, int limit, int counter) {
-        if (counter == limit) {
-            //int actualProc = comm.Get_rank();
-            //screamForWork(actualProc);
-            return actualNode;
-        } else {
-            int direction_possibilities = getDirections(actualNode);
-            int xPos = puzzleSize % width;
+    private void solve(int[][] puzzle, Direction actualDir, int[] spacerPos, int depth) {
+        if (Arrays.deepEquals(puzzle, new int[][]{{1, 2, 3}, {4, 5, 6}, {7, 8, 0}})) {
+            System.out.println(stack.toString() + "\n");
+            System.out.println(Arrays.toString(puzzle[0]));
+            System.out.println(Arrays.toString(puzzle[1]));
+            System.out.println(Arrays.toString(puzzle[2]));
+            System.exit(0);
+        }
+        if (depth == 0) {
+            System.out.println(stack.toString() + "\n");
+            stack.pop();
+            return;
+        }
 
-            perform_move(actualNode, Direction.UP);
+        int x = spacerPos[0];
+        int y = spacerPos[1];
 
-            for (int i = 0; i < direction_possibilities; i++) {
-                Puzzle.Node child_node = new Node();
-                child_node.setParent(actualNode);
-                //child_node.setMovDirection(direction_possibilities.get(i));
-                child_node.number = i + 1 + actualNode.number;
-                if (tree.get(actualNode.parent.number) == null) {
-                    tree.put(actualNode.parent.number, new ArrayList<>());
-                }
-                List<Integer> childs = tree.get(actualNode.parent.number);
-                childs.add(child_node.number);
-                return dfs(child_node, limit, counter + 1);
+        if (depth != DEPTH) {
+            int[] newSpacerPos = null;
+            switch (actualDir) {
+                case UP:
+                    newSpacerPos = new int[]{x, y - 1};
+                    break;
+                case DOWN:
+                    newSpacerPos = new int[]{x, y + 1};
+                    break;
+                case LEFT:
+                    newSpacerPos = new int[]{x - 1, y};
+                    break;
+                case RIGHT:
+                    newSpacerPos = new int[]{x + 1, y};
+                    break;
             }
+            move(puzzle, spacerPos, newSpacerPos);
+            spacerPos = newSpacerPos;
+            x = spacerPos[0];
+            y = spacerPos[1];
         }
-        return null;
-    }
 
-    private void perform_move(Node actualNode, Direction direction) {
-        switch (direction) {
-            case UP:
+        List<Direction> possibleDirections = new ArrayList<>(Arrays.asList(Direction.values()));
 
-                break;
-            case DOWN:
-                break;
-            case LEFT:
-                break;
-            case RIGHT:
-                break;
+        // No "reverse" move
+        if (actualDir == Direction.UP) possibleDirections.remove(Direction.DOWN);
+        if (actualDir == Direction.DOWN) possibleDirections.remove(Direction.UP);
+        if (actualDir == Direction.LEFT) possibleDirections.remove(Direction.RIGHT);
+        if (actualDir == Direction.RIGHT) possibleDirections.remove(Direction.LEFT);
+
+        // Check if spacer is near a border
+        if (x == 0) possibleDirections.remove(Direction.LEFT);
+        if (y == 0) possibleDirections.remove(Direction.UP);
+        if (x == size - 1) possibleDirections.remove(Direction.RIGHT);
+        if (y == size - 1) possibleDirections.remove(Direction.DOWN);
+
+        // Expand graph for each possible direction
+        for (Direction dir : possibleDirections) {
+            stack.push(dir.toString());
+            int[][] arrayCopy = copyArray(puzzle);
+            solve(arrayCopy, dir, spacerPos, depth - 1);
         }
+        if (!stack.isEmpty()) stack.pop();
     }
 
-    public void screamForWork(int proc) {
-
+    private int[][] copyArray(int[][] input) {
+        int[][] arrayCopy = new int[input.length][];
+        for (int i = 0; i < input.length; i++)
+            arrayCopy[i] = Arrays.copyOf(input[i], input.length);
+        return arrayCopy;
     }
 
-    private List<Integer> getNeighbours(int pos) {
-        return null;
+    private void move(int[][] puzzle, int[] oldPos, int[] newPos) {
+        int tmp = puzzle[oldPos[1]][oldPos[0]];
+        puzzle[oldPos[1]][oldPos[0]] = puzzle[newPos[1]][newPos[0]];
+        puzzle[newPos[1]][newPos[0]] = tmp;
     }
 
-    public int getDirections(Node node) {
-
-        getNeighbours(node.getLastPos());
-        List<Direction> result = new ArrayList<>();
-
-        throw new NotImplementedException();
-    }
 
     enum Direction {
-        NA, UP, DOWN, LEFT, RIGHT
-    }
-
-    class Node {
-        private int number = 0;
-        private Direction movDirection = Direction.NA;
-        private int lastPos = 0;
-        private int puzzleSize = 9;
-        private Node parent = null;
-
-        public int getNumber() {
-            return number;
-        }
-
-        public void setNumber(int number) {
-            this.number = number;
-        }
-
-        public Direction getMovDirection() {
-            return movDirection;
-        }
-
-        public void setMovDirection(Direction movDirection) {
-            this.movDirection = movDirection;
-        }
-
-        public int getLastPos() {
-            return lastPos;
-        }
-
-        public void setLastPos(int lastPos) {
-            this.lastPos = lastPos;
-        }
-
-        public int getPuzzleSize() {
-            return puzzleSize;
-        }
-
-        public void setPuzzleSize(int puzzleSize) {
-            this.puzzleSize = puzzleSize;
-        }
-
-        public Node getParent() {
-            return parent;
-        }
-
-        public void setParent(Node parent) {
-            this.parent = parent;
-        }
+        LEFT, RIGHT, UP, DOWN
     }
 }
