@@ -10,7 +10,6 @@ package ch.bfh.zinggpa.mpi;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 public class Puzzle {
@@ -31,7 +30,7 @@ public class Puzzle {
         int result = 0;
         try {
             while (result != -1) {
-                result = solve(root, null, bound, 0);
+                result = solve(root, bound);
                 if (result >= maxBound) break;
                 bound = result;
             }
@@ -40,31 +39,41 @@ public class Puzzle {
         }
     }
 
-    private int solve(Node node, Direction actualDir, int bound, int moves) throws CloneNotSupportedException {
+    private int solve(Node node, int bound) throws CloneNotSupportedException {
         // Check if result reached
         if (node.isSorted()) {
+            Node traverse = node;
+            StringBuilder sb = new StringBuilder();
+            while (traverse.parent != null) {
+                sb.insert(0, String.format("-> %s ", traverse.dir));
+                traverse = traverse.parent;
+            }
+            System.out.println(sb.toString());
             System.out.println(node.toString());
+
             return -1;
         }
 
-        int f = moves + node.getManhattanDistance();
+        int f = node.getMoves() + node.getTotalManhattanDistance();
         if (f > bound) {
             return f;
         }
 
-        if (actualDir != null) {
-            node.move(actualDir);
+        if (node.dir != null) {
+            node.move();
         }
+
 
         int min = Integer.MAX_VALUE;
         // Expand graph for each possible direction
-        for (Direction dir : node.getPossibleDirections(actualDir)) {
+        for (Direction dir : node.getPossibleDirections()) {
             Node newNode = node.clone();
-            node.addChild(newNode);
-            int solve = solve(newNode, dir, bound, moves + 1);
+            newNode.incMoves();
+            newNode.parent = node;
+            newNode.dir = dir;
+            int solve = solve(newNode, bound);
             if (solve == -1) return -1;
             if (solve < min) min = solve;
-
         }
         return min;
     }
@@ -75,14 +84,17 @@ public class Puzzle {
     }
 
     class Node implements Cloneable {
-        private Collection<Node> children;
+        private Node parent;
         private int[] puzzle;
         private int[] spacerPos;
+        private int moves;
+        private Direction dir;
 
         public Node(int[] puzzle, int[] spacerPos) {
             this.puzzle = puzzle;
             this.spacerPos = spacerPos;
-            this.children = new ArrayList<>();
+            this.moves = 0;
+            this.dir = null;
         }
 
         public boolean isSorted() {
@@ -97,7 +109,7 @@ public class Puzzle {
             return sorted;
         }
 
-        public void move(Direction dir) {
+        public void move() {
             int[] newPos = null;
             int x = spacerPos[0];
             int y = spacerPos[1];
@@ -123,7 +135,6 @@ public class Puzzle {
             spacerPos = newPos;
         }
 
-
         private int getManhattanDistance(int[] pos) {
             int number = puzzle[pos[1] * rows + pos[0]];
             int destIdx = (number == 0) ? puzzle.length - 1 : number - 1;
@@ -146,14 +157,14 @@ public class Puzzle {
             return result;
         }
 
-        public List<Direction> getPossibleDirections(Direction actualDir) {
+        public List<Direction> getPossibleDirections() {
             List<Direction> possibleDirections = new ArrayList<>(Arrays.asList(Direction.values()));
 
             // No "reverse" move
-            if (actualDir == Direction.UP) possibleDirections.remove(Direction.DOWN);
-            if (actualDir == Direction.DOWN) possibleDirections.remove(Direction.UP);
-            if (actualDir == Direction.LEFT) possibleDirections.remove(Direction.RIGHT);
-            if (actualDir == Direction.RIGHT) possibleDirections.remove(Direction.LEFT);
+            if (dir == Direction.UP) possibleDirections.remove(Direction.DOWN);
+            if (dir == Direction.DOWN) possibleDirections.remove(Direction.UP);
+            if (dir == Direction.LEFT) possibleDirections.remove(Direction.RIGHT);
+            if (dir == Direction.RIGHT) possibleDirections.remove(Direction.LEFT);
 
             int x = spacerPos[0];
             int y = spacerPos[1];
@@ -172,13 +183,18 @@ public class Puzzle {
             Node n;
             n = (Node) super.clone();
             n.puzzle = Arrays.copyOf(this.puzzle, puzzle.length);
+            n.parent = null;
             return n;
         }
 
-        public void addChild(Node n) {
-            this.children.add(n);
+        public void incMoves() {
+            moves++;
         }
-        
+
+        public int getMoves() {
+            return moves;
+        }
+
         @Override
         public String toString() {
             return Arrays.toString(puzzle);
