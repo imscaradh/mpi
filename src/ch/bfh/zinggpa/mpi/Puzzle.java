@@ -43,11 +43,14 @@ public class Puzzle {
         // Check if result reached
         if (node.isSorted()) {
             Node traverse = node;
+            int counter = 0;
             StringBuilder sb = new StringBuilder();
-            while (traverse.parent != null) {
+            while (traverse.getParent() != null) {
                 sb.insert(0, String.format("-> %s ", traverse.dir));
-                traverse = traverse.parent;
+                traverse = traverse.getParent();
+                counter++;
             }
+            System.out.println(counter + " moves:");
             System.out.println(sb.toString());
             System.out.println(node.toString());
 
@@ -59,18 +62,17 @@ public class Puzzle {
             return f;
         }
 
-        if (node.dir != null) {
+        if (node.getDir() != null) {
             node.move();
         }
-
 
         int min = Integer.MAX_VALUE;
         // Expand graph for each possible direction
         for (Direction dir : node.getPossibleDirections()) {
             Node newNode = node.clone();
             newNode.incMoves();
-            newNode.parent = node;
-            newNode.dir = dir;
+            newNode.setParent(node);
+            newNode.setDir(dir);
             int solve = solve(newNode, bound);
             if (solve == -1) return -1;
             if (solve < min) min = solve;
@@ -143,10 +145,6 @@ public class Puzzle {
             return Math.abs(destX - pos[0]) + Math.abs(destY - pos[1]);
         }
 
-        public int getManhattanDistance() {
-            return getManhattanDistance(spacerPos);
-        }
-
         public int getTotalManhattanDistance() {
             int result = 0;
             for (int i = 0; i < cols; i++) {
@@ -193,6 +191,22 @@ public class Puzzle {
 
         public int getMoves() {
             return moves;
+        }
+
+        public Node getParent() {
+            return parent;
+        }
+
+        public void setParent(Node parent) {
+            this.parent = parent;
+        }
+
+        public Direction getDir() {
+            return dir;
+        }
+
+        public void setDir(Direction dir) {
+            this.dir = dir;
         }
 
         @Override
