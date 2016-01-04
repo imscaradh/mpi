@@ -8,39 +8,54 @@
 package ch.bfh.zinggpa.mpi;
 
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.LinkedList;
+import java.util.Stack;
 
 public class Puzzle {
     private int rows;
     private int cols;
     private Node root;
+    private Stack<StackElement> stack;
 
     public Puzzle(int[] puzzleRepresentation, int rows, int cols) {
         this.root = new Node(puzzleRepresentation, new int[]{0, 0});
         this.rows = rows;
         this.cols = cols;
+        this.stack = new Stack<>();
     }
 
     public void solve() {
-        int bound = root.getTotalManhattanDistance();
-        int maxBound = bound * 10;
-
-        int result = 0;
         try {
+            int bound = root.getTotalManhattanDistance();
+            int maxBound = bound * 10;
+            int result = 0;
             while (result != -1) {
                 result = solve(root, bound);
                 if (result >= maxBound) break;
                 bound = result;
+                // Now lets explore the unexplored paths :-)
+                while (!stack.isEmpty() && result != -1) {
+                    StackElement nextCandidate = stack.pop();
+                    for (Direction direction : nextCandidate.getUnexplored()) {
+                        Node parent = nextCandidate.getParent();
+                        Node clone = parent.clone();
+                        clone.setDir(direction);
+                        clone.setParent(parent);
+                        clone.incMoves();
+                        result = solve(clone, clone.bound);
+                        if (result >= maxBound) break;
+                    }
+                }
             }
-        } catch (CloneNotSupportedException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private int solve(Node node, int bound) throws CloneNotSupportedException {
+    private int solve(Node node, int bound) throws Exception {
         // Check if result reached
+        node.bound = bound;
         if (node.isSorted()) {
             Node traverse = node;
             int counter = 0;
@@ -58,26 +73,23 @@ public class Puzzle {
         }
 
         int f = node.getMoves() + node.getTotalManhattanDistance();
-        if (f > bound) {
-            return f;
-        }
 
-        if (node.getDir() != null) {
-            node.move();
-        }
+        if (f > bound) return f;
+        if (node.getDir() != null) node.move();
 
-        int min = Integer.MAX_VALUE;
-        // Expand graph for each possible direction
-        for (Direction dir : node.getPossibleDirections()) {
-            Node newNode = node.clone();
-            newNode.incMoves();
-            newNode.setParent(node);
-            newNode.setDir(dir);
-            int solve = solve(newNode, bound);
-            if (solve == -1) return -1;
-            if (solve < min) min = solve;
-        }
-        return min;
+        LinkedList<Direction> possibleDirections = node.getPossibleDirections();
+        Direction candidate = possibleDirections.remove(0);
+        Node newNode = node.clone();
+        newNode.incMoves();
+        newNode.setParent(node);
+        newNode.setDir(candidate);
+
+        stack.push(new StackElement(node, possibleDirections));
+
+        int solve = solve(newNode, bound);
+        if (solve == -1) return -1;
+        if (solve < Integer.MAX_VALUE) return solve;
+        else throw new Exception("Max integer space reached");
     }
 
 
@@ -91,6 +103,7 @@ public class Puzzle {
         private int[] spacerPos;
         private int moves;
         private Direction dir;
+        private int bound;
 
         public Node(int[] puzzle, int[] spacerPos) {
             this.puzzle = puzzle;
@@ -155,8 +168,8 @@ public class Puzzle {
             return result;
         }
 
-        public List<Direction> getPossibleDirections() {
-            List<Direction> possibleDirections = new ArrayList<>(Arrays.asList(Direction.values()));
+        public LinkedList<Direction> getPossibleDirections() {
+            LinkedList<Direction> possibleDirections = new LinkedList<>(Arrays.asList(Direction.values()));
 
             // No "reverse" move
             if (dir == Direction.UP) possibleDirections.remove(Direction.DOWN);
@@ -212,6 +225,24 @@ public class Puzzle {
         @Override
         public String toString() {
             return Arrays.toString(puzzle);
+        }
+    }
+
+    class StackElement {
+        private Node parent;
+        private LinkedList<Direction> unexplored;
+
+        public StackElement(Node parent, LinkedList<Direction> unexplored) {
+            this.parent = parent;
+            this.unexplored = unexplored;
+        }
+
+        public Node getParent() {
+            return parent;
+        }
+
+        public LinkedList<Direction> getUnexplored() {
+            return unexplored;
         }
     }
 }
