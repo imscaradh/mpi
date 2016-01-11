@@ -8,36 +8,43 @@
 package ch.bfh.zinggpa.mpi;
 
 
+import mpi.MPI;
+
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Stack;
 
-public class Puzzle {
-    private int rows;
-    private int cols;
-    private Node root;
+public class Puzzle implements Serializable {
+    private final int rows;
+    private final int cols;
+    private final Node root;
+    private boolean solved;
     private Stack<StackElement> stack;
 
     public Puzzle(int[] puzzleRepresentation, int rows, int cols) {
         this.root = new Node(puzzleRepresentation, new int[]{0, 0});
         this.rows = rows;
         this.cols = cols;
-        this.stack = new Stack<>();
+        stack = new Stack<>();
     }
 
-    public void solve() {
+
+    public boolean sequentialSolve() {
         try {
             int bound = root.getTotalManhattanDistance();
             int maxBound = bound * 10;
             int result = 0;
+
             while (result != -1) {
                 result = solve(root, bound);
                 if (result >= maxBound) break;
                 bound = result;
-                // Now lets explore the unexplored paths :-)
+
                 while (!stack.isEmpty() && result != -1) {
                     StackElement nextCandidate = stack.pop();
-                    for (Direction direction : nextCandidate.getUnexplored()) {
+                    LinkedList<Direction> unexplored = nextCandidate.getUnexplored();
+                    for (Direction direction : unexplored) {
                         Node parent = nextCandidate.getParent();
                         Node clone = parent.clone();
                         clone.setDir(direction);
@@ -47,10 +54,96 @@ public class Puzzle {
                         if (result >= maxBound) break;
                     }
                 }
+
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+        return solved;
+    }
+
+    public boolean parallelSolve() {
+        try {
+            int bound = root.getTotalManhattanDistance();
+            int maxBound = bound * 10;
+            int result = 0;
+
+            // MPJ stuff
+            int size = MPI.COMM_WORLD.Size();
+            int rank = MPI.COMM_WORLD.Rank();
+
+            while (result != -1) {
+                if (rank == 0) {
+                    result = solve(root, bound);
+                    if (result >= maxBound) break;
+                    bound = result;
+
+                    while (!stack.isEmpty() && result != -1) {
+                        int sent = 0;
+                        for (int i = 1; i < size; i++) {
+                            if (!stack.isEmpty()) {
+                                StackElement nextCandidate = stack.pop();
+                                send(i, nextCandidate, result, stack);
+                                sent++;
+                                if (Main.DEBUG) System.out.printf("Sent data to %d...\n", i);
+                            }
+                        }
+
+                        for (int i = 1; i <= sent; i++) {
+                            Object[] objects = receive(i);
+                            result = (int) objects[0];
+                            stack = (Stack<StackElement>) objects[1];
+                        }
+                    }
+                } else {
+                    Object[] receive = receive(0);
+                    StackElement nextCandidate = (StackElement) receive[0];
+                    result = (int) receive[1];
+                    stack = (Stack<StackElement>) receive[2];
+
+                    LinkedList<Direction> unexplored = nextCandidate.getUnexplored();
+                    if (Main.DEBUG) {
+                        System.out.printf("Proc %d: Received buff=%s, unexplored=[%s], result=[%s]\n", rank, Arrays.toString(receive), unexplored.size(), result);
+                    }
+                    for (Direction direction : unexplored) {
+                        Node parent = nextCandidate.getParent();
+                        Node clone = parent.clone();
+                        clone.setDir(direction);
+                        clone.setParent(parent);
+                        clone.incMoves();
+                        result = solve(clone, clone.bound);
+                        if (result >= maxBound) break;
+                    }
+
+                    send(0, result, stack);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return solved;
+    }
+
+    private void send(int proc, Object... objects) {
+        int count[] = new int[]{objects.length};
+        MPI.COMM_WORLD.Send(count, 0, 1, MPI.INT, proc, 42);
+        MPI.COMM_WORLD.Send(objects, 0, objects.length, MPI.OBJECT, proc, 43);
+    }
+
+    private Object[] receive(int proc) {
+        int count[] = new int[1];
+        MPI.COMM_WORLD.Recv(count, 0, 1, MPI.INT, proc, 42);
+        Object objects[] = new Object[count[0]];
+        MPI.COMM_WORLD.Recv(objects, 0, count[0], MPI.OBJECT, proc, 43);
+        return objects;
+    }
+
+    private Object[] ireceive(int proc) {
+        int count[] = new int[1];
+        MPI.COMM_WORLD.Irecv(count, 0, 1, MPI.INT, proc, 42);
+        Object objects[] = new Object[count[0]];
+        MPI.COMM_WORLD.Irecv(objects, 0, count[0], MPI.OBJECT, proc, 43);
+        return objects;
     }
 
     private int solve(Node node, int bound) throws Exception {
@@ -68,7 +161,7 @@ public class Puzzle {
             System.out.println(counter + " moves:");
             System.out.println(sb.toString());
             System.out.println(node.toString());
-
+            this.solved = true;
             return -1;
         }
 
@@ -87,17 +180,15 @@ public class Puzzle {
         stack.push(new StackElement(node, possibleDirections));
 
         int solve = solve(newNode, bound);
-        if (solve == -1) return -1;
-        if (solve < Integer.MAX_VALUE) return solve;
+        if (solve == -1 || solve < Integer.MAX_VALUE) return solve;
         else throw new Exception("Max integer space reached");
     }
-
 
     enum Direction {
         LEFT, RIGHT, UP, DOWN
     }
 
-    class Node implements Cloneable {
+    class Node implements Cloneable, Serializable {
         private Node parent;
         private int[] puzzle;
         private int[] spacerPos;
@@ -228,7 +319,7 @@ public class Puzzle {
         }
     }
 
-    class StackElement {
+    class StackElement implements Serializable {
         private Node parent;
         private LinkedList<Direction> unexplored;
 
@@ -243,6 +334,11 @@ public class Puzzle {
 
         public LinkedList<Direction> getUnexplored() {
             return unexplored;
+        }
+
+        @Override
+        public String toString() {
+            return "StackElement{" + "parent=" + parent + '}';
         }
     }
 }
