@@ -78,28 +78,30 @@ public class Puzzle implements Serializable {
                     if (result >= maxBound) break;
                     bound = result;
 
-                    while (!stack.isEmpty() && result != -1) {
-                        int sent = 0;
-                        for (int i = 1; i < size; i++) {
-                            if (!stack.isEmpty()) {
-                                StackElement nextCandidate = stack.pop();
-                                send(i, nextCandidate, result, stack);
-                                sent++;
-                                if (Main.DEBUG) System.out.printf("Sent data to %d...\n", i);
-                            }
-                        }
+                    int i = 1;
 
-                        for (int i = 1; i <= sent; i++) {
-                            Object[] objects = receive(i);
-                            result = (int) objects[0];
-                            stack = (Stack<StackElement>) objects[1];
-                        }
+                    while (!stack.isEmpty() && result != -1) {
+                        StackElement nextCandidate = stack.pop();
+
+                        // Sending data to other processes
+                        // TODO: What to do with result?
+                        send(i, nextCandidate, stack);
+
+                        // Receiving data from other processes
+                        Object[] objects = receive(i);
+                        result = (int) objects[0];
+                        stack = (Stack<StackElement>) objects[1];
+
+                        if (Main.DEBUG) System.out.printf("Sent data to %d...\n", i);
+
+                        if (i == size - 1) i = 1;
+                        else i++;
                     }
                 } else {
                     Object[] receive = receive(0);
                     StackElement nextCandidate = (StackElement) receive[0];
-                    result = (int) receive[1];
-                    stack = (Stack<StackElement>) receive[2];
+                    stack = (Stack<StackElement>) receive[1];
+                    //result = (int) receive[2];
 
                     LinkedList<Direction> unexplored = nextCandidate.getUnexplored();
                     if (Main.DEBUG) {
