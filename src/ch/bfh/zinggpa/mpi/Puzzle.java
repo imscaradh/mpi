@@ -16,17 +16,31 @@ import java.util.LinkedList;
 import java.util.Stack;
 
 public class Puzzle implements Serializable {
+    public static final int WORK_REQUEST = 444;
+    public static final int NODE_ADD_REQUEST = 445;
     private final int rows;
     private final int cols;
-    private final Node root;
     private boolean solved;
-    private Stack<StackElement> stack;
+    private boolean hasWork;
+
+    private int procSize;
+    private int procRank;
+
+    private Stack<Node> stack;
+    private Node root;
+
+    private Node actNode;
 
     public Puzzle(int[] puzzleRepresentation, int rows, int cols) {
         this.root = new Node(puzzleRepresentation, new int[]{0, 0});
         this.rows = rows;
         this.cols = cols;
+        this.hasWork = false;
         stack = new Stack<>();
+
+        // MPJ stuff
+        procRank = MPI.COMM_WORLD.Rank();
+        procSize = MPI.COMM_WORLD.Size();
     }
 
 
@@ -42,19 +56,17 @@ public class Puzzle implements Serializable {
                 bound = result;
 
                 while (!stack.isEmpty() && result != -1) {
-                    StackElement nextCandidate = stack.pop();
+                    Node nextCandidate = stack.pop();
                     LinkedList<Direction> unexplored = nextCandidate.getUnexplored();
                     for (Direction direction : unexplored) {
-                        Node parent = nextCandidate.getParent();
-                        Node clone = parent.clone();
+                        Node clone = nextCandidate.clone();
                         clone.setDir(direction);
-                        clone.setParent(parent);
+                        clone.setParent(nextCandidate);
                         clone.incMoves();
                         result = solve(clone, clone.bound);
                         if (result >= maxBound) break;
                     }
                 }
-
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -64,66 +76,75 @@ public class Puzzle implements Serializable {
 
     public boolean parallelSolve() {
         try {
-            int bound = root.getTotalManhattanDistance();
-            int maxBound = bound * 10;
+            int maxBound = 0;
             int result = 0;
 
-            // MPJ stuff
-            int size = MPI.COMM_WORLD.Size();
-            int rank = MPI.COMM_WORLD.Rank();
+            // First round
+            if (procRank == 0) {
+                int bound = root.getTotalManhattanDistance();
+                maxBound = bound * 10;
+                result = solve(root, bound);
 
-            while (result != -1) {
-                if (rank == 0) {
-                    result = solve(root, bound);
-                    if (result >= maxBound) break;
-                    bound = result;
+                actNode = stack.pop();
+            }
 
-                    int i = 1;
+            // TODO: Prevent endless loop
+            while (true) {
+                // Coordinator
+                if (procRank == 0) {
+                    for (int i = 1; i < procSize; i++) {
+                        //System.out.printf("Wait for request from %d...\n", i);
+                        Object[] receive = receive(i);
+                        int requestType = (int) receive[0];
+                        System.out.printf("Got Request Type %s from proc %d\n", requestType, i);
 
-                    while (!stack.isEmpty() && result != -1) {
-                        StackElement nextCandidate = stack.pop();
+                        if (requestType == WORK_REQUEST) {
+                            result = (int) receive[1];
+                            if (result >= maxBound) break;
+                            Node nodeForProc = getNextNode();
+                            send(i, nodeForProc, result);
+                        }
 
-                        // Sending data to other processes
-                        // TODO: What to do with result?
-                        send(i, nextCandidate, stack);
-
-                        // Receiving data from other processes
-                        Object[] objects = receive(i);
-                        result = (int) objects[0];
-                        stack = (Stack<StackElement>) objects[1];
-
-                        if (Main.DEBUG) System.out.printf("Sent data to %d...\n", i);
-
-                        if (i == size - 1) i = 1;
-                        else i++;
+                        if (requestType == NODE_ADD_REQUEST) {
+                            Node nodeToAdd = (Node) receive[1];
+                            stack.push(nodeToAdd);
+                            System.out.printf("Stack has now %d elements\n", stack.size());
+                        }
                     }
                 } else {
+                    // Processor is ready for new work
+                    send(0, WORK_REQUEST, result);
+                    this.hasWork = false;
+
                     Object[] receive = receive(0);
-                    StackElement nextCandidate = (StackElement) receive[0];
-                    stack = (Stack<StackElement>) receive[1];
-                    //result = (int) receive[2];
+                    Node node = (Node) receive[0];
+                    int bound = (int) receive[1];
 
-                    LinkedList<Direction> unexplored = nextCandidate.getUnexplored();
-                    if (Main.DEBUG) {
-                        System.out.printf("Proc %d: Received buff=%s, unexplored=[%s], result=[%s]\n", rank, Arrays.toString(receive), unexplored.size(), result);
-                    }
-                    for (Direction direction : unexplored) {
-                        Node parent = nextCandidate.getParent();
-                        Node clone = parent.clone();
-                        clone.setDir(direction);
-                        clone.setParent(parent);
-                        clone.incMoves();
-                        result = solve(clone, clone.bound);
-                        if (result >= maxBound) break;
-                    }
-
-                    send(0, result, stack);
+                    System.out.printf("Proc %d: Got Node=[%s] \n", procRank, node.toString());
+                    result = solve(node, bound);
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return solved;
+    }
+
+
+    private Node getNextNode() throws CloneNotSupportedException {
+        if (stack.isEmpty()) return actNode;
+
+        while (actNode.getUnexplored().isEmpty()) {
+            actNode = stack.pop();
+        }
+
+        Direction direction = actNode.getUnexplored().pop();
+
+        Node clone = actNode.clone();
+        clone.setDir(direction);
+        clone.setParent(actNode);
+        clone.incMoves();
+        return clone;
     }
 
     private void send(int proc, Object... objects) {
@@ -140,18 +161,12 @@ public class Puzzle implements Serializable {
         return objects;
     }
 
-    private Object[] ireceive(int proc) {
-        int count[] = new int[1];
-        MPI.COMM_WORLD.Irecv(count, 0, 1, MPI.INT, proc, 42);
-        Object objects[] = new Object[count[0]];
-        MPI.COMM_WORLD.Irecv(objects, 0, count[0], MPI.OBJECT, proc, 43);
-        return objects;
-    }
-
     private int solve(Node node, int bound) throws Exception {
         // Check if result reached
         node.bound = bound;
         if (node.isSorted()) {
+
+            System.out.println("Manhattan-Distance: " + node.getTotalManhattanDistance());
             Node traverse = node;
             int counter = 0;
             StringBuilder sb = new StringBuilder();
@@ -160,7 +175,7 @@ public class Puzzle implements Serializable {
                 traverse = traverse.getParent();
                 counter++;
             }
-            System.out.println(counter + " moves:");
+            System.out.println(counter - 1 + " moves:");
             System.out.println(sb.toString());
             System.out.println(node.toString());
             this.solved = true;
@@ -174,12 +189,14 @@ public class Puzzle implements Serializable {
 
         LinkedList<Direction> possibleDirections = node.getPossibleDirections();
         Direction candidate = possibleDirections.remove(0);
+        node.setUnexplored(possibleDirections);
         Node newNode = node.clone();
         newNode.incMoves();
         newNode.setParent(node);
         newNode.setDir(candidate);
 
-        stack.push(new StackElement(node, possibleDirections));
+        if (procRank > 0) send(0, NODE_ADD_REQUEST, node);
+        else stack.push(node);
 
         int solve = solve(newNode, bound);
         if (solve == -1 || solve < Integer.MAX_VALUE) return solve;
@@ -197,6 +214,7 @@ public class Puzzle implements Serializable {
         private int moves;
         private Direction dir;
         private int bound;
+        private LinkedList<Direction> unexplored;
 
         public Node(int[] puzzle, int[] spacerPos) {
             this.puzzle = puzzle;
@@ -237,14 +255,14 @@ public class Puzzle implements Serializable {
                     break;
             }
 
-            int tmp = puzzle[spacerPos[1] * rows + spacerPos[0]];
-            puzzle[spacerPos[1] * rows + spacerPos[0]] = puzzle[newPos[1] * rows + newPos[0]];
-            puzzle[newPos[1] * rows + newPos[0]] = tmp;
+            int tmp = puzzle[spacerPos[1] * cols + spacerPos[0]];
+            puzzle[spacerPos[1] * cols + spacerPos[0]] = puzzle[newPos[1] * cols + newPos[0]];
+            puzzle[newPos[1] * cols + newPos[0]] = tmp;
             spacerPos = newPos;
         }
 
         private int getManhattanDistance(int[] pos) {
-            int number = puzzle[pos[1] * rows + pos[0]];
+            int number = puzzle[pos[1] * cols + pos[0]];
             int destIdx = (number == 0) ? puzzle.length - 1 : number - 1;
             int destX = destIdx % rows;
             int destY = destIdx / rows;
@@ -255,7 +273,7 @@ public class Puzzle implements Serializable {
             int result = 0;
             for (int i = 0; i < cols; i++) {
                 for (int j = 0; j < rows; j++) {
-                    if (puzzle[j * rows + i] != 0) result += getManhattanDistance(new int[]{i, j});
+                    if (puzzle[j * cols + i] != 0) result += getManhattanDistance(new int[]{i, j});
                 }
             }
             return result;
@@ -315,32 +333,17 @@ public class Puzzle implements Serializable {
             this.dir = dir;
         }
 
-        @Override
-        public String toString() {
-            return Arrays.toString(puzzle);
-        }
-    }
-
-    class StackElement implements Serializable {
-        private Node parent;
-        private LinkedList<Direction> unexplored;
-
-        public StackElement(Node parent, LinkedList<Direction> unexplored) {
-            this.parent = parent;
-            this.unexplored = unexplored;
-        }
-
-        public Node getParent() {
-            return parent;
-        }
-
         public LinkedList<Direction> getUnexplored() {
             return unexplored;
         }
 
+        public void setUnexplored(LinkedList<Direction> unexplored) {
+            this.unexplored = unexplored;
+        }
+
         @Override
         public String toString() {
-            return "StackElement{" + "parent=" + parent + '}';
+            return Arrays.toString(puzzle);
         }
     }
 }

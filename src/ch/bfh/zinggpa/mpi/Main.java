@@ -14,18 +14,17 @@ public class Main {
 
     public static void main(String[] args) {
         MPI.Init(args);
-        //int[] puzzleRepresentation = new int[]{0, 5, 2, 1, 8, 3, 4, 7, 6};
-        int[] puzzleRepresentation = new int[]{0, 10, 4, 6, 1, 7, 11, 2, 13, 3, 9, 8, 5, 15, 14, 12};
-        //int[] puzzleRepresentation = new int[]{0, 7, 4, 15, 5, 14, 18, 8, 3, 9, 23, 16, 11, 1, 10, 6, 22, 17, 12, 20, 2, 21, 13, 19, 24};
+        //int[] puzzleRepresentation = new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8}; // 3x3 config
+        int[] puzzleRepresentation = new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 14}; // 4x4 config
+        //int[] puzzleRepresentation = new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}; // 5x4 config
 
-        double start = System.nanoTime();
+        long start = System.currentTimeMillis();
         Puzzle p = new Puzzle(puzzleRepresentation, 4, 4);
-        boolean solved = p.sequentialSolve();
+        boolean solved = p.parallelSolve();
 
-        double end = System.nanoTime();
+        double end = System.currentTimeMillis();
 
-        System.out.printf("\n---------- Puzzle %s solved in %.3f s --------------\n", (solved ? "was" : "was NOT"), (end - start) * 10e-6);
-
+        System.out.printf("\n---------- Puzzle %s solved in %f ms --------------\n", (solved ? "was" : "was NOT"), (end - start));
 
         MPI.Finalize();
     }
