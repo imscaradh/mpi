@@ -21,7 +21,6 @@ public class Puzzle implements Serializable {
     private final int rows;
     private final int cols;
     private boolean solved;
-    private boolean hasWork;
 
     private int procSize;
     private int procRank;
@@ -35,12 +34,13 @@ public class Puzzle implements Serializable {
         this.root = new Node(puzzleRepresentation, new int[]{0, 0});
         this.rows = rows;
         this.cols = cols;
-        this.hasWork = false;
         stack = new Stack<>();
 
         // MPJ stuff
-        procRank = MPI.COMM_WORLD.Rank();
-        procSize = MPI.COMM_WORLD.Size();
+        if (Main.PARALLEL) {
+            procRank = MPI.COMM_WORLD.Rank();
+            procSize = MPI.COMM_WORLD.Size();
+        }
     }
 
 
@@ -77,50 +77,64 @@ public class Puzzle implements Serializable {
     public boolean parallelSolve() {
         try {
             int maxBound = 0;
+            int bound = 0;
             int result = 0;
 
             // First round
             if (procRank == 0) {
-                int bound = root.getTotalManhattanDistance();
+                bound = root.getTotalManhattanDistance();
                 maxBound = bound * 10;
                 result = solve(root, bound);
+                bound = result;
 
                 actNode = stack.pop();
             }
 
-            // TODO: Prevent endless loop
-            while (true) {
+            while (!solved) {
                 // Coordinator
                 if (procRank == 0) {
+
+                    //FIXME: That's wrong because we are using blocking operations!
                     for (int i = 1; i < procSize; i++) {
-                        //System.out.printf("Wait for request from %d...\n", i);
                         Object[] receive = receive(i);
+
                         int requestType = (int) receive[0];
-                        System.out.printf("Got Request Type %s from proc %d\n", requestType, i);
+                        if (Main.DEBUG) System.out.printf("Got Request Type %s from proc %d\n", requestType, i);
 
                         if (requestType == WORK_REQUEST) {
-                            result = (int) receive[1];
-                            if (result >= maxBound) break;
-                            Node nodeForProc = getNextNode();
-                            send(i, nodeForProc, result);
+                            int tmpResult = (int) receive[1];
+                            solved = (boolean) receive[2];
+                            if (tmpResult != 0) result = tmpResult;
+                            if (result >= maxBound) return false;
+
+                            Node nodeForProc;
+
+                            //FIXME: Proc 0 shouldn't do this work here..
+                            while ((nodeForProc = getNextNode()) == null) {
+                                result = solve(root, bound);
+                                if (result >= maxBound) return false;
+                                bound = result;
+                            }
+
+                            send(i, nodeForProc, nodeForProc.bound, solved);
                         }
 
                         if (requestType == NODE_ADD_REQUEST) {
                             Node nodeToAdd = (Node) receive[1];
                             stack.push(nodeToAdd);
-                            System.out.printf("Stack has now %d elements\n", stack.size());
+                            if (Main.DEBUG) System.out.printf("Stack has now %d elements\n", stack.size());
                         }
                     }
                 } else {
                     // Processor is ready for new work
-                    send(0, WORK_REQUEST, result);
-                    this.hasWork = false;
+                    send(0, WORK_REQUEST, result, solved);
 
                     Object[] receive = receive(0);
                     Node node = (Node) receive[0];
-                    int bound = (int) receive[1];
+                    bound = (int) receive[1];
+                    solved = (boolean) receive[2];
 
-                    System.out.printf("Proc %d: Got Node=[%s] \n", procRank, node.toString());
+                    if (Main.DEBUG) System.out.printf("Proc %d: Got Node=[%s] \n", procRank, node.toString());
                     result = solve(node, bound);
                 }
             }
@@ -132,9 +146,10 @@ public class Puzzle implements Serializable {
 
 
     private Node getNextNode() throws CloneNotSupportedException {
-        if (stack.isEmpty()) return actNode;
-
         while (actNode.getUnexplored().isEmpty()) {
+            if (stack.isEmpty()) {
+                return null;
+            }
             actNode = stack.pop();
         }
 
@@ -165,7 +180,6 @@ public class Puzzle implements Serializable {
         // Check if result reached
         node.bound = bound;
         if (node.isSorted()) {
-
             System.out.println("Manhattan-Distance: " + node.getTotalManhattanDistance());
             Node traverse = node;
             int counter = 0;
