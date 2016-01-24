@@ -46,7 +46,7 @@ public class Puzzle implements Serializable {
 
     public boolean sequentialSolve() {
         try {
-            int bound = root.getTotalManhattanDistance();
+            int bound = root.getManhattanDistance();
             int maxBound = bound * 10;
             int result = 0;
 
@@ -82,7 +82,7 @@ public class Puzzle implements Serializable {
 
             // First round
             if (procRank == 0) {
-                bound = root.getTotalManhattanDistance();
+                bound = root.getManhattanDistance();
                 maxBound = bound * 10;
                 result = solve(root, bound);
                 bound = result;
@@ -180,7 +180,7 @@ public class Puzzle implements Serializable {
         // Check if result reached
         node.bound = bound;
         if (node.isSorted()) {
-            System.out.println("Manhattan-Distance: " + node.getTotalManhattanDistance());
+            System.out.println("Manhattan-Distance: " + node.getManhattanDistance());
             Node traverse = node;
             int counter = 0;
             StringBuilder sb = new StringBuilder();
@@ -196,7 +196,7 @@ public class Puzzle implements Serializable {
             return -1;
         }
 
-        int f = node.getMoves() + node.getTotalManhattanDistance();
+        int f = node.getMoves() + node.getManhattanDistance();
 
         if (f > bound) return f;
         if (node.getDir() != null) node.move();
@@ -275,7 +275,7 @@ public class Puzzle implements Serializable {
             spacerPos = newPos;
         }
 
-        private int getManhattanDistance(int[] pos) {
+        private int getManhattanDistanceForPosition(int[] pos) {
             int number = puzzle[pos[1] * cols + pos[0]];
             int destIdx = (number == 0) ? puzzle.length - 1 : number - 1;
             int destX = destIdx % rows;
@@ -283,11 +283,11 @@ public class Puzzle implements Serializable {
             return Math.abs(destX - pos[0]) + Math.abs(destY - pos[1]);
         }
 
-        public int getTotalManhattanDistance() {
+        public int getManhattanDistance() {
             int result = 0;
             for (int i = 0; i < cols; i++) {
                 for (int j = 0; j < rows; j++) {
-                    if (puzzle[j * cols + i] != 0) result += getManhattanDistance(new int[]{i, j});
+                    if (puzzle[j * cols + i] != 0) result += getManhattanDistanceForPosition(new int[]{i, j});
                 }
             }
             return result;
@@ -306,6 +306,7 @@ public class Puzzle implements Serializable {
             int y = spacerPos[1];
 
             // Check if spacer is near a border
+            //TODO: Outsource into a lookup table
             if (x == 0) possibleDirections.remove(Direction.LEFT);
             if (y == 0) possibleDirections.remove(Direction.UP);
             if (x == cols - 1) possibleDirections.remove(Direction.RIGHT);

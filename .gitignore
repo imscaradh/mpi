@@ -2,3 +2,6 @@
 *.iml
 bin/
 *.class
+doc/report.pdf
+doc/report.aux
+doc/report.log

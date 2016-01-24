@@ -34,9 +34,23 @@
 \maketitle
 
 \section{Beschreibung}
+Als Ziel für dieses Projekt habe ich mir vorgenommen, das 3x3 und 4x4 Puzzle in einer akzeptablen Zeit mit möglichst minimaler Anzahl Züge lösen zu können. Ausserdem versuchte ich, durch die verschiedenen Methoden mich an das Problem anzunähern. Zuerst implementierte ich eine rekursive Tiefensuche, welche das 3x3 Puzzle lösen kann, aber für das 4x4 viel zu ineffizient ist (Node expansion). Mit dem rekursiven IDA* konnte das 4x4 Puzzle dann in einer einigermassen akzeptablen Zeit gelöst werden. Da für die Parallelisierung sich aber die Rekursion schlecht eignet, habe ich den Algorithmus umgebaut und ein Stack eingeführt. 
 
 \section{Aufbau, Funktionsweise}
+Die Funktionsweise wurde bereits im Unterricht behandelt. Ich gehe in diesem Kapitel nur kurz auf Spezialitäten meiner Lösung ein. Als Stackelement verwendete ich ein Node-Objekt, welches aus notwendigen Informationen wie dem Parent, den unexplorierten Childnodes oder der aktuellen Position des Spacers besteht. Dies erleichterte mir den Aufbau des Algorithmus stark. Um zu überprüfen, ob ein Resultat gefunden wurde, wird bei jedem Aufruf von $solve(\dots)$ geprüft, ob das Puzzle in sortiertem Zustand vorliegt. Die Heuristik wird folgendermassen berechnet:
+\[
+int f = node.getMoves() + node.getTotalManhattanDistance();
+\]
+
+Überschreitet $f$ den Boundwert nicht, so wird geschaut, in welche Richtungen sich der Spacer bewegen kann. 
 
 \section{Verbesserungsmöglichkeiten}
+Leider gelang es mir nicht, die parallele Lösung so zu implementieren, dass sie effizienter als die sequenzielle Lösung ist. Ich habe jedoch versucht, den Prozessor 0 als Koordinator zu verwenden, welcher Arbeitsanfragen entgegennimmt und auch verteilt. Die Workerprozessoren sollten jeweils nur von einer Node aus den Tree expandieren und auf den Stack des Prozessors 0 pushen. Das pushen wird auch wieder mit MPJ-Kommunikation gelöst. \\
+Leider gibt es diverse Problematiken, welche zu einer massiv höheren Ausführungszeit des Algorithmus führen. Zum Einen iteriert der Koordinator immer über die Prozessornummern und wartet mit einem blockierenden Aufruf auf ein receive. Dies ist natürlich sehr problematisch, da ein anderer Prozessor mit seiner Arbeit bereits fertig sein kann, der Koordinator aber noch mit dem Warten auf einen anderen Prozessor in der for-Schlaufe beschäftigt ist. \\
+Ein viel grösseres Problem stellt die Problematik bei einem leeren Stack dar. Falls der Stack leer ist, führt Prozessor 0, also der Koordinator, ein solve aus. Dies habe ich analog zum sequenziellen Algorithmus so implementiert. Natürlich ist dies nicht die gewünschte Verhaltensweise. Dort sollte auf jeden Fall noch eine Überlegung gemacht werden, wie diese Arbeit an einen Worker abgegeben werden kann. 
+
+\section{Projektablage}
+Das ganze Projekt ist unter gitHub zu finden: https://github.com/imscaradh/mpi
+
 
 \end{document}
