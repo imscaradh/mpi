@@ -39,18 +39,28 @@ Als Ziel für dieses Projekt habe ich mir vorgenommen, das 3x3 und 4x4 Puzzle in
 \section{Aufbau, Funktionsweise}
 Die Funktionsweise wurde bereits im Unterricht behandelt. Ich gehe in diesem Kapitel nur kurz auf Spezialitäten meiner Lösung ein. Als Stackelement verwendete ich ein Node-Objekt, welches aus notwendigen Informationen wie dem Parent, den unexplorierten Childnodes oder der aktuellen Position des Spacers besteht. Dies erleichterte mir den Aufbau des Algorithmus stark. Um zu überprüfen, ob ein Resultat gefunden wurde, wird bei jedem Aufruf von $solve(\dots)$ geprüft, ob das Puzzle in sortiertem Zustand vorliegt. Die Heuristik wird folgendermassen berechnet:
 \[
-int f = node.getMoves() + node.getTotalManhattanDistance();
+node.getMoves() + node.getTotalManhattanDistance();
 \]
 
-Überschreitet $f$ den Boundwert nicht, so wird geschaut, in welche Richtungen sich der Spacer bewegen kann. 
+Überschreitet der berechnete Wert den Boundwert nicht, so wird geschaut, in welche Richtungen sich der Spacer bewegen kann. \\ \\
+Die ungefähren Laufzeiten sehen wie folgt aus:
+\begin{list}{}{}
+\item 3x3 Puzzle sequenziell: ca. 120 ms
+\item 4x4 Puzzle sequenziell: ca. 6 s
+
+\item 3x3 Puzzle parallel: ca. 6 s
+\item 4x4 Puzzle parallel: Nicht lösbar
+\end{list}
 
 \section{Verbesserungsmöglichkeiten}
 Leider gelang es mir nicht, die parallele Lösung so zu implementieren, dass sie effizienter als die sequenzielle Lösung ist. Ich habe jedoch versucht, den Prozessor 0 als Koordinator zu verwenden, welcher Arbeitsanfragen entgegennimmt und auch verteilt. Die Workerprozessoren sollten jeweils nur von einer Node aus den Tree expandieren und auf den Stack des Prozessors 0 pushen. Das pushen wird auch wieder mit MPJ-Kommunikation gelöst. \\
 Leider gibt es diverse Problematiken, welche zu einer massiv höheren Ausführungszeit des Algorithmus führen. Zum Einen iteriert der Koordinator immer über die Prozessornummern und wartet mit einem blockierenden Aufruf auf ein receive. Dies ist natürlich sehr problematisch, da ein anderer Prozessor mit seiner Arbeit bereits fertig sein kann, der Koordinator aber noch mit dem Warten auf einen anderen Prozessor in der for-Schlaufe beschäftigt ist. \\
-Ein viel grösseres Problem stellt die Problematik bei einem leeren Stack dar. Falls der Stack leer ist, führt Prozessor 0, also der Koordinator, ein solve aus. Dies habe ich analog zum sequenziellen Algorithmus so implementiert. Natürlich ist dies nicht die gewünschte Verhaltensweise. Dort sollte auf jeden Fall noch eine Überlegung gemacht werden, wie diese Arbeit an einen Worker abgegeben werden kann. 
+Ein viel grösseres Problem stellt die Problematik bei einem leeren Stack dar. Falls der Stack leer ist, führt Prozessor 0, also der Koordinator, ein solve aus. Dies habe ich analog zum sequenziellen Algorithmus so implementiert. Natürlich ist dies nicht die gewünschte Verhaltensweise. Dort sollte auf jeden Fall noch eine Überlegung gemacht werden, wie diese Arbeit an einen Worker abgegeben werden kann. Dies hat aus meiner Sicht jedoch eine grössere Umstrukturierung des ganzen Programms zur Folge, weshalb ich auch darauf verzichtet habe.
 
-\section{Projektablage}
-Das ganze Projekt ist unter gitHub zu finden: https://github.com/imscaradh/mpi
+\section{Projektablage und weiteres Vorgehen}
+Das ganze Projekt ist unter GitHub zu finden: \\
+https://github.com/imscaradh/puzzle-solver \\
 
+Auf jeden Fall werde ich das Problem weiterverfolgen, da ich den Vorteil der parallelen Lösung unbedingt noch ausreizen möchte. Ich fand das Thema und die Aufgabenstellung sehr spannend, jedoch war gerade diese Projekt sehr zeitintensiv. Dies ist auch der Grund, warum ich nicht ganz fertig damit bin und sich der Algorithmus nicht in einem einwandfreien Zustand befindet. 
 
 \end{document}
